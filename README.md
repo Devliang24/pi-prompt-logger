@@ -1,13 +1,13 @@
 # pi-prompt-logger
 
-Pi Extension: Auto-record user prompts to JSONL, export to Markdown for review.
+Pi Extension: Auto-record user prompts to JSONL for review.
 
 ## Features
 
 - ✅ Auto-record prompts to JSONL
-- ✅ Export to Markdown/JSONL
+- ✅ Export to JSONL
 - ✅ Date range & project filtering
-- ✅ LLM batch tag/summary generation
+- ✅ LLM batch tag generation
 - ✅ Sensitive info filtering
 - ✅ Auto-cleanup old logs
 - ✅ Zero-latency recording
@@ -15,7 +15,7 @@ Pi Extension: Auto-record user prompts to JSONL, export to Markdown for review.
 ## Installation
 
 ```bash
-git clone https://github.com/Devliang24/pi-prompt-logger-.git ~/.pi/agent/extensions/prompt-logger
+git clone https://github.com/Devliang24/pi-prompt-logger.git ~/.pi/agent/extensions/prompt-logger
 ```
 
 Restart pi or run `/reload` to load the extension.
@@ -43,10 +43,8 @@ Once installed, prompts are recorded automatically. Each Enter saves to:
 | `--since` | 7 days | Start date |
 | `--until` | today | End date |
 | `--project` | all | Filter by project |
-| `--format` | markdown | Format: markdown / jsonl |
 | `--output` | auto | Output path |
 | `--with-tags` | - | Generate LLM tags |
-| `--with-summary` | - | Generate LLM summary |
 
 #### Examples
 
@@ -55,8 +53,8 @@ Once installed, prompts are recorded automatically. Each Enter saves to:
 /export-prompts --since "30 days"                 # Last 30 days
 /export-prompts --since "2026-05-01" --until "2026-05-31"
 /export-prompts --project ~/project-a             # Filter by project
-/export-prompts --format jsonl                    # JSONL format
-/export-prompts --with-tags --with-summary        # LLM enhanced
+/export-prompts --output ~/Desktop/export.jsonl   # Custom output
+/export-prompts --with-tags                       # Generate LLM tags
 ```
 
 ## Data Format
@@ -68,7 +66,8 @@ Once installed, prompts are recorded automatically. Each Enter saves to:
   "text": "How to implement feature X?",
   "cwd": "/Users/liang/project",
   "sessionFile": "session-xxx",
-  "model": "claude-sonnet-4"
+  "model": "claude-sonnet-4",
+  "tags": ["feature", "question"]
 }
 ```
 

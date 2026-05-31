@@ -1,7 +1,7 @@
 /**
  * pi-prompt-logger - Pi Extension
  * 
- * Auto-record user prompts to JSONL, export to Markdown for review.
+ * Auto-record user prompts to JSONL, export to JSONL for review.
  * 
  * Install: git clone to ~/.pi/agent/extensions/prompt-logger
  */
@@ -311,7 +311,6 @@ function parseArgs(args: string): {
   since?: string;
   until?: string;
   project?: string;
-  format?: 'markdown' | 'jsonl';
   output?: string;
   withTags?: boolean;
   withSummary?: boolean;
@@ -323,7 +322,6 @@ function parseArgs(args: string): {
       since: parsed.since ? String(parsed.since) : undefined,
       until: parsed.until ? String(parsed.until) : undefined,
       project: parsed.project ? String(parsed.project) : undefined,
-      format: parsed.format as 'markdown' | 'jsonl' | undefined,
       output: parsed.output ? String(parsed.output) : undefined,
       withTags: parsed['with-tags'] ? true : undefined,
       withSummary: parsed['with-summary'] ? true : undefined,
@@ -331,76 +329,6 @@ function parseArgs(args: string): {
   } catch {
     return {};
   }
-}
-
-function formatTime(isoString: string): string {
-  return new Date(isoString).toTimeString().slice(0, 8);
-}
-
-async function generateMarkdown(
-  records: PromptRecord[],
-  options: ReturnType<typeof parseArgs>
-): Promise<string> {
-  const since = options.since ?? '7 days ago';
-  const until = options.until ?? 'today';
-
-  let content = `# Prompt Log
-
-**Generated:** ${new Date().toLocaleString()}  
-**Date Range:** ${since} ~ ${until}  
-**Total Records:** ${records.length}
-
----
-
-`;
-
-  // Project stats
-  const statsMap = new Map<string, number>();
-  for (const r of records) {
-    statsMap.set(r.cwd, (statsMap.get(r.cwd) ?? 0) + 1);
-  }
-
-  if (statsMap.size > 0) {
-    content += '## Project Statistics\n\n';
-    content += '| Project | Count |\n|---------|-------|\n';
-    for (const [path, count] of statsMap) {
-      const displayPath = path.replace(process.env.HOME ?? '', '~');
-      content += `| ${displayPath} | ${count} |\n`;
-    }
-    content += '\n---\n\n';
-  }
-
-  // Group by date
-  const groups = new Map<string, PromptRecord[]>();
-  for (const r of records) {
-    const date = getDateStr(new Date(r.timestamp));
-    const existing = groups.get(date) ?? [];
-    existing.push(r);
-    groups.set(date, existing);
-  }
-
-  for (const [date, dateRecords] of groups) {
-    content += `## ${date}\n\n`;
-    for (const record of dateRecords) {
-      const cwd = record.cwd.replace(process.env.HOME ?? '', '~');
-      content += `### ${formatTime(record.timestamp)} · ${cwd}\n\n`;
-      if (record.model) content += `**Model:** ${record.model}\n\n`;
-      if (record.tags?.length) content += `**Tags:** ${record.tags.map(t => `\`${t}\``).join(' ')}\n\n`;
-      if (record.summary) content += `*${record.summary}*\n\n`;
-
-      const isMultiline = record.text.includes('\n');
-      if (isMultiline) {
-        content += '<details>\n<summary>Click to expand</summary>\n\n```\n';
-        content += record.text;
-        content += '\n```\n</details>\n\n';
-      } else {
-        content += record.text + '\n';
-      }
-      content += '\n---\n\n';
-    }
-  }
-
-  return content;
 }
 
 async function doExport(
@@ -446,16 +374,12 @@ ${records.map(r => JSON.stringify({ id: r.id, text: r.text.slice(0, 200) })).joi
     }
   }
 
-  const format = options.format ?? 'markdown';
-  const content = format === 'jsonl'
-    ? records.map(r => JSON.stringify(r)).join('\n') + '\n'
-    : await generateMarkdown(records, options);
+  const content = records.map(r => JSON.stringify(r)).join('\n') + '\n';
 
   const date = getDateStr();
-  const ext = format === 'markdown' ? 'md' : 'jsonl';
   let outputPath = options.output
     ? resolveHome(options.output)
-    : join(resolveHome(exportDir), `prompt-log-${date}.${ext}`);
+    : join(resolveHome(exportDir), `prompt-log-${date}.jsonl`);
 
   const dir = dirname(outputPath);
   await mkdir(dir, { recursive: true });
@@ -502,7 +426,7 @@ export default async function (pi: ExtensionAPI) {
 
   // Register command
   pi.registerCommand('export-prompts', {
-    description: 'Export prompts to Markdown/JSONL',
+    description: 'Export prompts to JSONL',
     handler: async (args, ctx) => {
       const options = parseArgs(args);
       const startTime = Date.now();
