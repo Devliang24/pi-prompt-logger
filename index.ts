@@ -7,8 +7,9 @@
 
 import minimist from 'minimist';
 import { randomUUID } from 'node:crypto';
-import { appendFile, writeFile, appendFileSync, existsSync, readFile, unlink } from 'node:fs';
-import { join, resolve } from 'node:path';
+import { existsSync, readdirSync } from 'node:fs';
+import { appendFile, mkdir, readFile, unlink } from 'node:fs/promises';
+import { dirname, join } from 'node:path';
 import type { ExtensionAPI, ExtensionContext } from '@earendil-works/pi-coding-agent';
 
 // 类型定义
@@ -82,6 +83,55 @@ function parseDate(dateStr: string): Date | null {
   return isNaN(date.getTime()) ? null : date;
 }
 
+function tokenizeArgs(input: string): string[] {
+  const tokens: string[] = [];
+  let current = '';
+  let quote: '"' | "'" | null = null;
+  let escaped = false;
+
+  for (const char of input) {
+    if (escaped) {
+      current += char;
+      escaped = false;
+      continue;
+    }
+
+    if (char === '\\') {
+      escaped = true;
+      continue;
+    }
+
+    if (quote) {
+      if (char === quote) {
+        quote = null;
+      } else {
+        current += char;
+      }
+      continue;
+    }
+
+    if (char === '"' || char === "'") {
+      quote = char;
+      continue;
+    }
+
+    if (/\s/.test(char)) {
+      if (current) {
+        tokens.push(current);
+        current = '';
+      }
+      continue;
+    }
+
+    current += char;
+  }
+
+  if (escaped) current += '\\';
+  if (current) tokens.push(current);
+
+  return tokens;
+}
+
 // 配置管理
 async function loadSettings(logDir?: string): Promise<Settings> {
   const dir = resolveHome(logDir ?? DEFAULT_SETTINGS.logDir);
@@ -100,7 +150,6 @@ async function loadSettings(logDir?: string): Promise<Settings> {
 }
 
 async function ensureLogDir(logDir: string): Promise<void> {
-  const { mkdir } = await import('node:fs/promises');
   const dir = resolveHome(logDir);
   if (!existsSync(dir)) {
     await mkdir(dir, { recursive: true });
@@ -114,7 +163,6 @@ function getLogPath(logDir: string, date?: Date): string {
 
 function getLogFiles(logDir: string): string[] {
   const dir = resolveHome(logDir);
-  const { readdirSync } = require('node:fs');
   
   try {
     return readdirSync(dir)
@@ -269,7 +317,7 @@ function parseArgs(args: string): {
 } {
   if (!args.trim()) return {};
   try {
-    const parsed = minimist(args.trim().split(/\s+/));
+    const parsed = minimist(tokenizeArgs(args.trim()));
     return {
       since: parsed.since ? String(parsed.since) : undefined,
       until: parsed.until ? String(parsed.until) : undefined,
@@ -372,7 +420,7 @@ async function doExport(
 For each record, output: {"id": "...", "tags": ["tag1"]}
 
 Records:
-${records.map(r => JSON.stringify({ id: r.id, text: r.text.slice(0, 200)) })).join('\n')}`;
+${records.map(r => JSON.stringify({ id: r.id, text: r.text.slice(0, 200) })).join('\n')}`;
 
         const response = await callLlm(config, prompt);
         const tagMap = new Map<string, string[]>();
@@ -408,8 +456,7 @@ ${records.map(r => JSON.stringify({ id: r.id, text: r.text.slice(0, 200)) })).jo
     ? resolveHome(options.output)
     : join(resolveHome(exportDir), `prompt-log-${date}.${ext}`);
 
-  const { mkdir } = await import('node:fs/promises');
-  const dir = join(outputPath, '..');
+  const dir = dirname(outputPath);
   await mkdir(dir, { recursive: true });
 
   await appendFile(outputPath, content, 'utf-8');
