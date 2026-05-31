@@ -49,13 +49,22 @@ Once installed, prompts are recorded automatically. Each Enter saves to:
 #### Examples
 
 ```bash
-/export-prompts                                    # Last 7 days
-/export-prompts --since "30 days"                 # Last 30 days
+/export-prompts
+/export-prompts --since "30 days"
 /export-prompts --since "2026-05-01" --until "2026-05-31"
-/export-prompts --project ~/project-a             # Filter by project
-/export-prompts --output ~/Desktop/export.jsonl   # Custom output
-/export-prompts --with-tags                       # Generate LLM tags
+/export-prompts --project ~/project-a
+/export-prompts --output ~/Desktop/export.jsonl
+/export-prompts --with-tags
 ```
+
+| Example | Description |
+|---------|-------------|
+| `/export-prompts` | Export last 7 days |
+| `/export-prompts --since "30 days"` | Export last 30 days |
+| `/export-prompts --since "2026-05-01" --until "2026-05-31"` | Export date range |
+| `/export-prompts --project ~/project-a` | Filter by project |
+| `/export-prompts --output ~/Desktop/export.jsonl` | Custom output path |
+| `/export-prompts --with-tags` | Generate LLM tags |
 
 ## Data Format
 
