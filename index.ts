@@ -1,8 +1,9 @@
 /**
- * pi-prompt-logger - Pi Extension Entry Point
+ * pi-prompt-logger - Pi Extension
  * 
- * 安装：将此文件复制到 ~/.pi/agent/extensions/prompt-logger/index.ts
- * 或：git clone 到该目录
+ * Auto-record user prompts to JSONL, export to Markdown for review.
+ * 
+ * Install: git clone to ~/.pi/agent/extensions/prompt-logger
  */
 
 import minimist from 'minimist';
@@ -12,7 +13,7 @@ import { appendFile, mkdir, readFile, unlink } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import type { ExtensionAPI, ExtensionContext } from '@earendil-works/pi-coding-agent';
 
-// 类型定义
+// Types
 interface PromptRecord {
   id: string;
   timestamp: string;
@@ -34,7 +35,7 @@ interface Settings {
   maxFileAge: number;
 }
 
-// 常量
+// Defaults
 const DEFAULT_SETTINGS: Settings = {
   enabled: true,
   logDir: '~/.pi/agent/prompt-logger',
@@ -52,7 +53,7 @@ const TAG_POOL = [
   'question', 'performance', 'security'
 ];
 
-// 工具函数
+// Utilities
 function resolveHome(path: string): string {
   if (path.startsWith('~/')) {
     return join(process.env.HOME ?? '', path.slice(2));
@@ -132,7 +133,7 @@ function tokenizeArgs(input: string): string[] {
   return tokens;
 }
 
-// 配置管理
+// Config
 async function loadSettings(logDir?: string): Promise<Settings> {
   const dir = resolveHome(logDir ?? DEFAULT_SETTINGS.logDir);
   const settingsPath = join(dir, 'settings.json');
@@ -156,7 +157,7 @@ async function ensureLogDir(logDir: string): Promise<void> {
   }
 }
 
-// 日志文件操作
+// Log files
 function getLogPath(logDir: string, date?: Date): string {
   return join(resolveHome(logDir), `prompts-${getDateStr(date)}.jsonl`);
 }
@@ -201,7 +202,7 @@ function shouldIgnore(
   return patterns.some(p => p.test(text));
 }
 
-// 记录操作
+// Record operations
 async function appendRecord(record: PromptRecord, logDir: string): Promise<void> {
   const logPath = getLogPath(logDir);
   await ensureLogDir(logDir);
@@ -225,7 +226,7 @@ async function appendRecordWithRetry(
   return false;
 }
 
-// 读取操作
+// Read operations
 async function readRecordsFromFile(filePath: string): Promise<PromptRecord[]> {
   if (!existsSync(filePath)) return [];
   const content = await readFile(filePath, 'utf-8');
@@ -272,7 +273,7 @@ async function getTodayCount(logDir: string): Promise<number> {
   return records.length;
 }
 
-// LLM 标签生成
+// LLM
 async function getLlmConfig(ctx: ExtensionContext) {
   const model = ctx.model;
   if (!model) return null;
@@ -305,7 +306,7 @@ async function callLlm(config: NonNullable<ReturnType<typeof getLlmConfig>>, pro
   return data.content?.[0]?.text ?? '';
 }
 
-// 导出操作
+// Export
 function parseArgs(args: string): {
   since?: string;
   until?: string;
@@ -347,13 +348,13 @@ async function generateMarkdown(
 
 **Generated:** ${new Date().toLocaleString()}  
 **Date Range:** ${since} ~ ${until}  
-**Total Records:** ${records.length} 条
+**Total Records:** ${records.length}
 
 ---
 
 `;
 
-  // 项目统计
+  // Project stats
   const statsMap = new Map<string, number>();
   for (const r of records) {
     statsMap.set(r.cwd, (statsMap.get(r.cwd) ?? 0) + 1);
@@ -369,7 +370,7 @@ async function generateMarkdown(
     content += '\n---\n\n';
   }
 
-  // 按日期分组
+  // Group by date
   const groups = new Map<string, PromptRecord[]>();
   for (const r of records) {
     const date = getDateStr(new Date(r.timestamp));
@@ -410,7 +411,7 @@ async function doExport(
 ): Promise<{ path: string; count: number }> {
   const records = await readRecords(logDir, options.since, options.until, options.project);
 
-  // LLM 增强（如需要）
+  // LLM enhancement
   if ((options.withTags || options.withSummary) && ctx.model) {
     const config = await getLlmConfig(ctx);
     if (config) {
@@ -464,7 +465,7 @@ ${records.map(r => JSON.stringify({ id: r.id, text: r.text.slice(0, 200) })).joi
   return { path: outputPath, count: records.length };
 }
 
-// 清理旧文件
+// Cleanup
 async function cleanupOldFiles(logDir: string, maxFileAge: number, ctx: ExtensionContext): Promise<void> {
   if (maxFileAge <= 0) return;
 
@@ -486,43 +487,43 @@ async function cleanupOldFiles(logDir: string, maxFileAge: number, ctx: Extensio
   }
 
   if (deletedCount > 0) {
-    ctx.ui.notify(`已清理 ${deletedCount} 个过期日志文件`, 'info');
+    ctx.ui.notify(`Cleaned up ${deletedCount} old log files`, 'info');
   }
 }
 
-// 连续失败计数
+// Failure tracking
 let failureCount = 0;
 const FAILURE_THRESHOLD = 3;
 
-// 主入口
+// Main entry
 export default async function (pi: ExtensionAPI) {
   const settings = await loadSettings();
   await ensureLogDir(settings.logDir);
 
-  // 注册导出命令
+  // Register command
   pi.registerCommand('export-prompts', {
-    description: '导出提问记录为 Markdown/JSONL',
+    description: 'Export prompts to Markdown/JSONL',
     handler: async (args, ctx) => {
       const options = parseArgs(args);
       const startTime = Date.now();
 
       try {
-        ctx.ui.setStatus('prompt-logger', '正在导出...');
+        ctx.ui.setStatus('prompt-logger', 'Exporting...');
         const result = await doExport(settings.logDir, settings.exportDir, options, ctx);
         const duration = Date.now() - startTime;
         ctx.ui.notify(
-          `已导出 ${result.count} 条记录到 ${result.path} (${duration}ms)`,
+          `Exported ${result.count} records to ${result.path} (${duration}ms)`,
           'info'
         );
       } catch (error) {
-        ctx.ui.notify(`导出失败: ${error instanceof Error ? error.message : 'Unknown'}`, 'error');
+        ctx.ui.notify(`Export failed: ${error instanceof Error ? error.message : 'Unknown'}`, 'error');
       } finally {
         ctx.ui.setStatus('prompt-logger', '');
       }
     },
   });
 
-  // 监听输入
+  // Listen to input
   pi.on('input', async (event, ctx) => {
     if (!settings.enabled) return;
     if (!event.text?.trim()) return;
@@ -545,22 +546,22 @@ export default async function (pi: ExtensionAPI) {
       console.error('Failed to log prompt:', err);
       failureCount++;
       if (failureCount >= FAILURE_THRESHOLD) {
-        ctx.ui.notify('Prompt Logger 记录失败，请检查磁盘空间或日志文件权限', 'warn');
+        ctx.ui.notify('Prompt Logger recording failed. Check disk space and file permissions.', 'warn');
         failureCount = 0;
       }
     });
   });
 
-  // Session 启动
+  // Session start
   pi.on('session_start', async (_event, ctx) => {
     await cleanupOldFiles(settings.logDir, settings.maxFileAge, ctx);
 
     const todayCount = await getTodayCount(settings.logDir);
     if (todayCount > 0) {
-      ctx.ui.notify(`今日已记录 ${todayCount} 条提问`, 'info');
+      ctx.ui.notify(`Today: ${todayCount} prompts recorded`, 'info');
     } else {
-      // 首次使用提示
-      ctx.ui.notify('Prompt Logger 已激活，记录将保存到 ~/.pi/agent/prompt-logger/', 'info');
+      // First use hint
+      ctx.ui.notify('Prompt Logger activated. Logs saved to ~/.pi/agent/prompt-logger/', 'info');
     }
   });
 }
